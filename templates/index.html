@@ -1,0 +1,189 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DocTR OCR | Document Intelligence</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <header class="navbar">
+        <div class="logo">DocTR<span> OCR</span></div>
+        <div class="nav-label">DOCUMENT INTELLIGENCE</div>
+        <a href="/docs" target="_blank" class="api-link">API Docs ↗</a>
+    </header>
+
+    <main class="container">
+
+        <section class="hero">
+            <div class="tag">AI-POWERED DOCUMENT PROCESSING</div>
+            <h1>Extract Text.<br><span>Unlock Information.</span></h1>
+            <p>Upload your documents and let DocTR AI extract readable text in seconds.</p>
+        </section>
+
+        <section class="upload-card">
+            <h2>Upload Your Document</h2>
+            <p class="subtitle">Select a document to extract its text.</p>
+
+            <div class="drop-zone" id="dropZone">
+                <div class="upload-icon">↑</div>
+                <h3>Drag & Drop Your File Here</h3>
+                <p>or click below to browse files</p>
+
+                <input type="file" id="fileInput"
+                       accept=".pdf,.jpg,.jpeg,.png,.docx" hidden>
+
+                <button class="browse-btn" id="browseBtn">
+                    Browse Files
+                </button>
+
+                <p class="formats">Supported: PDF, JPG, JPEG, PNG, DOCX</p>
+            </div>
+
+            <div id="fileInfo" class="file-info hidden"></div>
+
+            <button id="extractBtn" class="extract-btn" disabled>
+                Extract Text →
+            </button>
+
+            <p id="status" class="status"></p>
+        </section>
+
+        <section id="resultSection" class="result-card hidden">
+            <div class="result-header">
+                <div>
+                    <h2>Extracted Text</h2>
+                    <p class="subtitle">Your document content is ready.</p>
+                </div>
+
+                <div class="result-actions">
+                    <button id="copyBtn" class="secondary-btn">Copy Text</button>
+                    <button id="downloadBtn" class="secondary-btn">Download</button>
+                </div>
+            </div>
+
+            <pre id="resultText"></pre>
+        </section>
+
+    </main>
+
+    <footer>
+        Powered by <span>DocTR AI</span> & FastAPI
+    </footer>
+
+    <script>
+        const fileInput = document.getElementById("fileInput");
+        const browseBtn = document.getElementById("browseBtn");
+        const dropZone = document.getElementById("dropZone");
+        const extractBtn = document.getElementById("extractBtn");
+        const fileInfo = document.getElementById("fileInfo");
+        const statusText = document.getElementById("status");
+        const resultSection = document.getElementById("resultSection");
+        const resultText = document.getElementById("resultText");
+
+        let selectedFile = null;
+
+        browseBtn.addEventListener("click", () => fileInput.click());
+
+        fileInput.addEventListener("change", () => {
+            if (fileInput.files.length) {
+                selectFile(fileInput.files[0]);
+            }
+        });
+
+        function selectFile(file) {
+            const allowed = [".pdf", ".jpg", ".jpeg", ".png", ".docx"];
+            const extension = "." + file.name.split(".").pop().toLowerCase();
+
+            if (!allowed.includes(extension)) {
+                statusText.textContent = "Unsupported file format.";
+                statusText.className = "status error";
+                return;
+            }
+
+            selectedFile = file;
+            fileInfo.textContent = "Selected: " + file.name;
+            fileInfo.classList.remove("hidden");
+            extractBtn.disabled = false;
+            statusText.textContent = "";
+            resultSection.classList.add("hidden");
+        }
+
+        dropZone.addEventListener("dragover", (event) => {
+            event.preventDefault();
+            dropZone.classList.add("dragging");
+        });
+
+        dropZone.addEventListener("dragleave", () => {
+            dropZone.classList.remove("dragging");
+        });
+
+        dropZone.addEventListener("drop", (event) => {
+            event.preventDefault();
+            dropZone.classList.remove("dragging");
+
+            const file = event.dataTransfer.files[0];
+            if (file) selectFile(file);
+        });
+
+        extractBtn.addEventListener("click", async () => {
+            if (!selectedFile) return;
+
+            const formData = new FormData();
+            formData.append("file", selectedFile);
+
+            extractBtn.disabled = true;
+            extractBtn.textContent = "Processing...";
+            statusText.textContent = "DocTR is extracting your text...";
+            statusText.className = "status";
+
+            try {
+                const response = await fetch("/extract-text", {
+                    method: "POST",
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || "OCR processing failed");
+                }
+
+                resultText.textContent = data.extracted_text || "No text found.";
+                resultSection.classList.remove("hidden");
+                statusText.textContent = "Text extraction completed successfully!";
+                statusText.className = "status success";
+
+            } catch (error) {
+                statusText.textContent = error.message;
+                statusText.className = "status error";
+            } finally {
+                extractBtn.disabled = false;
+                extractBtn.textContent = "Extract Text →";
+            }
+        });
+
+        document.getElementById("copyBtn").addEventListener("click", async () => {
+            await navigator.clipboard.writeText(resultText.textContent);
+            statusText.textContent = "Text copied successfully!";
+            statusText.className = "status success";
+        });
+
+        document.getElementById("downloadBtn").addEventListener("click", () => {
+            const blob = new Blob([resultText.textContent], {
+                type: "text/plain"
+            });
+
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = "extracted_text.txt";
+            link.click();
+            URL.revokeObjectURL(url);
+        });
+    </script>
+
+</body>
+</html>
